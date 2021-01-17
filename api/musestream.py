@@ -59,8 +59,15 @@ class MuseStream:
                     ch_data, 
                     notch=True,
                     filter_state = self.filter_state)
+                    
         except KeyboardInterrupt:
             print("Exception")
 
     def stopRecording(self):
         self.recording = False
+        
+        data = processEEG(self.eeg_raw)
+        
+        return jsonify(data)
+
+
