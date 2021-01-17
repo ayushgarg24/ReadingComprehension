@@ -42,18 +42,18 @@ class MuseStream:
         ## TRAIN DATASET
         print('Recording Baseline')
         eeg_data_baseline = BCI.record_eeg_filtered(
-                                    60, 
-                                    freq, 
-                                    INDEX_CHANNEL, 
+                                    self.TRAINING_LENGTH, 
+                                    self.freq, 
+                                    self.INDEX_CHANNEL, 
                                     True, )
         eeg_epochs_baseline = BCI.epoch_array(
                                     eeg_data_baseline, 
-                                    EPOCH_LENGTH, 
-                                    OVERLAP_LENGTH * freq, 
-                                    req)
+                                    self.EPOCH_LENGTH, 
+                                    self.OVERLAP_LENGTH * freq, 
+                                    self.freq)
         feat_matrix_baseline = BCI.compute_feature_matrix(
                                     eeg_epochs_baseline, 
-                                    freq)
+                                    self.freq)
         self.baseline = BCI.calc_baseline(feat_matrix_baseline)
 
     def startRecording(self):
@@ -97,7 +97,15 @@ class MuseStream:
                                                 self.freq)
 
         percent_change = BCI.calc_ratio(feat_matrix, self.baseline)
-        # test_json = [1235,135,135,13,53,513,5,1235,123,51,351,35135,135]
+        q75, q25 = np.percentile(percent_change, [75, 25])
+        iqr = q75 - q25
+        lower_bound = q25 - (1.5 * iqr)
+        upper_bound = q75 + (1.5 * iqr)
+        for x in range(0,len(percent_change)):
+            if (percent_change[x] > upper_bound):
+                percent_change[x] = np.median(percent_change)
+            if (percent_change[x] < lower_bound):
+                percent_change[x] = np.median(percent_change)
         return percent_change
 
         
