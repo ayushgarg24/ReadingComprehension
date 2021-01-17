@@ -21,6 +21,7 @@ class MuseStream:
     eeg_raw = []
     recording = False
     filter_state = None
+    baseline = []
     
     def __init__(self):
         
@@ -38,7 +39,22 @@ class MuseStream:
         self.desc       = info.desc()
         self.freq       = int(info.nominal_srate())
 
-        ## TRAIN DATASET HERE 
+        ## TRAIN DATASET
+        print('Recording Baseline')
+        eeg_data_baseline = BCI.record_eeg_filtered(
+                                    60, 
+                                    freq, 
+                                    INDEX_CHANNEL, 
+                                    True, )
+        eeg_epochs_baseline = BCI.epoch_array(
+                                    eeg_data_baseline, 
+                                    EPOCH_LENGTH, 
+                                    OVERLAP_LENGTH * freq, 
+                                    req)
+        feat_matrix_baseline = BCI.compute_feature_matrix(
+                                    eeg_epochs_baseline, 
+                                    freq)
+        self.baseline = BCI.calc_baseline(feat_matrix_baseline)
 
     def startRecording(self):
         self.recording = True
@@ -59,7 +75,7 @@ class MuseStream:
                     ch_data, 
                     notch=True,
                     filter_state = self.filter_state)
-                    
+
         except KeyboardInterrupt:
             print("Exception")
 
@@ -71,3 +87,18 @@ class MuseStream:
         return jsonify(data)
 
 
+    def processEEG(eeg_raw):
+        eeg_epochs = BCI.epoch_array(eeg_raw, 
+                        self.EPOCH_LENGTH, 
+                        self.OVERLAP_LENGTH * self.freq, 
+                        self.freq)
+        
+        feat_matrix = BCI.compute_feature_matrix(eeg_epochs, 
+                                                self.freq)
+
+        percent_change = BCI.calc_ratio(feat_matrix, self.baseline)
+        # test_json = [1235,135,135,13,53,513,5,1235,123,51,351,35135,135]
+        return percent_change
+
+        
+    

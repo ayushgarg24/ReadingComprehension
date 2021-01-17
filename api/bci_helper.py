@@ -11,26 +11,54 @@ from pylsl import StreamInlet, resolve_byprop  # Module to receive EEG data
 # initialize notches for bandpass filter
 NOTCH_B, NOTCH_A = butter(4, np.array([55, 65])/(256/2), btype='bandstop')
 
-def record_eeg(r_length, freq, channel_i):
-	streams = resolve_byprop('type', 'EEG', timeout=2)
+def record_eeg_filtered(r_length, freq, channel_i, notch = False, filter_state=None):
+    streams = resolve_byprop('type', 'EEG', timeout=2)
+    inlet = StreamInlet(streams[0], max_chunklen=12)
 
-	inlet  = StreamInlet(streams[0], max_chunklen=12)
-	""" Records EEG data from headset
-	Arguments:
-	r_length  -- how many seconds of data to record
-	freq      -- sample rate
-	channel_i -- channels to keep data from
-	Returns:
-	data      -- array of recorded data [sample, channel]
-	"""
+    """ Records EEG data from headset
+    Arguments:
+    r_length  -- how many seconds of data to record
+    freq      -- sample rate
+    channel_i -- channels to keep data from
+    Returns:
+    data      -- array of recorded data [sample, channel]
+    """
 
-	data, timestamps = inlet.pull_chunk( 
-		timeout = r_length + 1, 
-		max_samples = int(freq * r_length))
+    data, timestamps = inlet.pull_chunk(
+        timeout=r_length + 1,
+        max_samples=int(freq * r_length))
 
-	data = np.array(data)[:, channel_i]
+    data = np.array(data)[:, channel_i]
 
-	return data
+    if notch:
+        if filter_state is None:
+            filter_state = np.tile(lfilter_zi(NOTCH_B, NOTCH_A),
+                                   (data.shape[1], 1)).T
+
+        data, filter_state = lfilter(NOTCH_B, NOTCH_A, data, axis=0,
+                                         zi=filter_state)
+
+
+#def record_eeg(r_length, freq, channel_i):
+#	streams = resolve_byprop('type', 'EEG', timeout=2)
+#
+#	inlet  = StreamInlet(streams[0], max_chunklen=12)
+#	""" Records EEG data from headset
+#	Arguments:
+#	r_length  -- how many seconds of data to record
+#	freq      -- sample rate
+#	channel_i -- channels to keep data from
+#	Returns:
+#	data      -- array of recorded data [sample, channel]
+#	"""
+#
+#	data, timestamps = inlet.pull_chunk( 
+#		timeout = r_length + 1, 
+#		max_samples = int(freq * r_length))
+#
+#	data = np.array(data)[:, channel_i]
+#
+#	return data
 
 
 def update_buffer(data_buffer, new_data, notch = False, filter_state = None):
@@ -87,9 +115,9 @@ def epoch_array(eeg_data, epoch_length, overlap_length, freq):
 	n_total_samples, n_channels = eeg_data.shape
 
 	# convert seconds to number of samples
-	epoch_n_samples   = epoch_length * freq
-	overlap_n_samples = 0#overlap_length * freq
-	shift_n_samples  = epoch_n_samples - overlap_n_samples
+	epoch_n_samples   = 256 # epoch_length * freq
+	overlap_n_samples = 205 # overlap_length * freq
+	shift_n_samples  = 51 # epoch_n_samples - overlap_n_samples
 
 	# total number of epochs
 	n_epochs = int(np.floor((n_total_samples - epoch_n_samples)
@@ -228,5 +256,39 @@ def compute_feature_matrix(epochs, freq):
 			epochs[:, :, epoch], freq).T
 
 			return feature_matrix
+
+
+def calc_ratio(feature_matrix, baseline):
+    ratio_arr = []
+
+    for epoch in feature_matrix:
+        ratio1 = epoch[0]/epoch[1]
+        ratio2 = epoch[2]/epoch[3]
+        ratio3 = epoch[4] / epoch[5]
+        ratio4 = epoch[6] / epoch[7]
+        ratio_avg = (1/ratio1 + 1/ratio2 + 1/ratio3 + 1/ratio4)/4
+        percent_change = ((ratio_avg-baseline)/baseline)*100
+        ratio_arr.append(percent_change)
+
+
+    return ratio_arr
+
+def calc_baseline(feature_matrix):
+    ratio_arr = []
+
+    for epoch in feature_matrix:
+        ratio1 = epoch[0]/epoch[1]
+        ratio2 = epoch[2]/epoch[3]
+        ratio3 = epoch[4] / epoch[5]
+        ratio4 = epoch[6] / epoch[7]
+        ratio_avg = (ratio1 + ratio2 + ratio3 + ratio4)/4
+        ratio_arr.append(ratio_avg)
+
+    baseline_val = sum(ratio_arr)/len(ratio_arr)
+    return baseline_val
+
+
+
+
 
 

@@ -1,3 +1,4 @@
+#imports
 import time
 import test
 from musestream import MuseStream
@@ -19,7 +20,8 @@ def home():
 
 @app.route('/start')
 def startRecord():
-    return MuseStream.startRecording()
+    MuseStream.startRecording()
+    return "recording"
 
 @app.route('/done')
 def stopRecording():
